@@ -1,46 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Folder, 
-  File, 
-  Plus, 
-  Upload, 
-  Search, 
-  Grid3X3, 
-  List,
-  MoreHorizontal,
-  Download,
-  Trash2,
-  Edit3,
-  FolderPlus,
-  ArrowLeft,
-  X,
-  Image,
-  Video,
-  FileText,
-  Music,
-  FileImage,
-  FileVideo,
-  FileAudio,
-  FileText as FileTextIcon
-} from 'lucide-react';
+import { Folder, File, Upload, Search, Grid3X3, List, MoreHorizontal, Download, Trash2, Edit3, FolderPlus, ArrowLeft, FileImage, FileVideo, FileAudio, FileText as FileTextIcon } from 'lucide-react';
 import { useFileStore } from '@/store/fileStore';
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter
-} from '@/components/ui/dialog';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from "sonner"
+
+interface FileItem {
+  id: number;
+  downloadToken: string;
+  originalName: string;
+  fileName: string | null;
+  filePath: string;
+  fileSize: number;
+  fileType: string;
+  minioPath: string | null;
+  parentId: number;
+  isFolder: boolean;
+  folderPath: string;
+  createdTime: string;
+  createdBy: string;
+  folderName: string | null;
+  fileCount: number | null;
+}
 
 // 文件管理器组件
 const FileManager: React.FC = () => {
@@ -49,8 +33,8 @@ const FileManager: React.FC = () => {
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<any | null>(null);
   const [isRenaming, setIsRenaming] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -62,25 +46,32 @@ const FileManager: React.FC = () => {
     createFolder, 
     uploadFile, 
     deleteFile, 
-    renameFile,
-    moveFile
+    renameFile
   } = useFileStore();
 
   useEffect(() => {
-    loadDirectory(0);
-    setCurrentPath(0);
-  }, []);
+    const initializeFiles = async () => {
+      await loadDirectory(0);
+      setCurrentPath(0);
+    };
+    initializeFiles();
+  }, [loadDirectory, setCurrentPath]);
 
   // 处理文件夹点击
-  const handleFolderClick = (folder: any) => {
+  const handleFolderClick = async (folder: FileItem) => {
     setCurrentPath(folder.id);
+    await loadDirectory(folder.id);
   };
 
   // 返回上一级
-  const handleGoBack = () => {
+  const handleGoBack = async () => {
     if (currentPath === 0) return;
-    // 这里需要获取当前文件夹的父级，简化处理为返回根目录
-    setCurrentPath(0);
+    const currentFolder = fileList.find(f => f.id === currentPath);
+    if (currentFolder) {
+      const parentId = currentFolder.parentId;
+      setCurrentPath(parentId);
+      await loadDirectory(parentId);
+    }
   };
 
   // 创建文件夹
@@ -92,8 +83,8 @@ const FileManager: React.FC = () => {
       setNewFolderName('');
       setIsCreatingFolder(false);
       toast.success("创建文件夹成功");
-    } catch (error) {
-        toast.error("创建文件夹失败");
+    } catch {
+      toast.error("创建文件夹失败");
     }
   };
 
@@ -107,16 +98,9 @@ const FileManager: React.FC = () => {
     
     try {
       await uploadFile(file, currentPath);
-      toast({
-        title: "成功",
-        description: "文件上传成功",
-      });
-    } catch (error) {
-      toast({
-        title: "错误",
-        description: "上传失败",
-        variant: "destructive",
-      });
+      toast.success("文件上传成功");
+    } catch {
+      toast.error("上传失败");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -125,20 +109,28 @@ const FileManager: React.FC = () => {
     }
   };
 
-  // 删除文件/文件夹
-  const handleDelete = async (file: any) => {
-    if (!window.confirm(`确定要删除 "${file.originalName}" 吗？`)) return;
+  const [fileToDelete, setFileToDelete] = useState<FileItem | null>(null);
 
+  // 删除文件/文件夹
+  const handleDelete = async (file: FileItem) => {
+    setFileToDelete(file);
+  };
+
+  const confirmDelete = async () => {
+    if (!fileToDelete) return;
+    
     try {
-      await deleteFile(file.id);
+      await deleteFile(fileToDelete.id);
       toast.success("删除成功");
-    } catch (error) {
-        toast.error("删除失败");
+    } catch {
+      toast.error("删除失败");
+    } finally {
+      setFileToDelete(null);
     }
   };
 
   // 开始重命名
-  const startRename = (file: any) => {
+  const startRename = (file: FileItem) => {
     setSelectedFile(file);
     setRenameValue(file.originalName);
     setIsRenaming(true);
@@ -154,13 +146,13 @@ const FileManager: React.FC = () => {
       setSelectedFile(null);
       setRenameValue('');
       toast.success("重命名成功");
-    } catch (error) {
-        toast.error("重命名失败");
+    } catch {
+      toast.error("重命名失败");
     }
   };
 
   // 下载文件
-  const handleDownload = (file: any) => {
+  const handleDownload = (file: FileItem) => {
     if (file.isFolder) return; // 文件夹不能下载
     window.open(`/api/files/download/${file.downloadToken}`, '_blank');
   };
@@ -184,7 +176,7 @@ const FileManager: React.FC = () => {
       case 'pdf':
         return <FileTextIcon className="w-8 h-8 text-red-500" />;
       case 'document':
-        return <FileText className="w-8 h-8 text-blue-500" />;
+        return <FileTextIcon className="w-8 h-8 text-blue-500" />;
       default:
         return <File className="w-8 h-8 text-gray-500" />;
     }
@@ -208,7 +200,26 @@ const FileManager: React.FC = () => {
               返回
             </Button>
           )}
-          <h1 className="text-xl font-semibold">文件管理</h1>
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="ghost" 
+              className="px-2 py-1 text-blue-600 hover:text-blue-800"
+              onClick={() => {
+                setCurrentPath(0);
+                loadDirectory(0);
+              }}
+            >
+              根目录
+            </Button>
+            {currentPath !== 0 && fileList.find(f => f.id === currentPath) && (
+              <>
+                <span className="text-gray-500">/</span>
+                <span className="text-gray-700">
+                  {fileList.find(f => f.id === currentPath)?.originalName}
+                </span>
+              </>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -415,37 +426,52 @@ const FileManager: React.FC = () => {
         )}
       </div>
 
+      {/* 删除确认对话框 */}
+      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fileToDelete && `确定要删除 "${fileToDelete.originalName}" 吗？此操作不可撤销。`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* 重命名对话框 */}
-      {isRenaming && selectedFile && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-96">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">重命名</h3>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsRenaming(false)}
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-            <Input
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && confirmRename()}
-              autoFocus
-            />
-            <div className="flex justify-end space-x-2 mt-4">
-              <Button variant="outline" onClick={() => setIsRenaming(false)}>
-                取消
-              </Button>
-              <Button onClick={confirmRename}>
-                确认
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog open={isRenaming} onOpenChange={setIsRenaming}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>重命名</AlertDialogTitle>
+            <AlertDialogDescription>
+              <Input
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmRename()}
+                autoFocus
+                className="mt-2"
+                placeholder="请输入新名称"
+              />
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setIsRenaming(false);
+              setSelectedFile(null);
+              setRenameValue('');
+            }}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRename}>
+              确认
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

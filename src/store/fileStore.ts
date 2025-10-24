@@ -67,11 +67,8 @@ export const useFileStore = create<FileStore>()(
       createFolder: async (folderName, parentId) => {
         set({ loading: true, error: null });
         try {
-          const params = new URLSearchParams({
-            folderName,
-            parentId: parentId.toString(),
-          });
-          const response = await axios.post('/api/files/folder', params);
+          // Send JSON body so vite-plugin-mock receives a parsed object in `body`
+          const response = await axios.post('/api/files/folder', { folderName, parentId });
           const data = response.data;
           if (data.success) {
             const { currentPath, loadDirectory } = get();
