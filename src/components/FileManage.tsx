@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Folder, File, Upload, Search, Grid3X3, List, MoreHorizontal, Download, Trash2, Edit3, FolderPlus, ArrowLeft, FileImage, FileVideo, FileAudio, FileText as FileTextIcon } from 'lucide-react';
+import { Folder, File, Upload, Search, Grid3X3, List, MoreHorizontal, Download, Trash2, Edit3, FolderPlus, FileImage, FileVideo, FileAudio, FileText as FileTextIcon } from 'lucide-react';
 import { useFileStore } from '@/store/fileStore';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from "sonner"
+import { Breadcrumb } from '@/components/ui/navigation/breadcrumb';
 
 interface FileItem {
   id: number;
@@ -36,6 +37,7 @@ const FileManager: React.FC = () => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  // breadcrumb state moved into Breadcrumb component
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { 
@@ -56,22 +58,15 @@ const FileManager: React.FC = () => {
     };
     initializeFiles();
   }, [loadDirectory, setCurrentPath]);
-
   // 处理文件夹点击
   const handleFolderClick = async (folder: FileItem) => {
     setCurrentPath(folder.id);
     await loadDirectory(folder.id);
   };
-
-  // 返回上一级
-  const handleGoBack = async () => {
-    if (currentPath === 0) return;
-    const currentFolder = fileList.find(f => f.id === currentPath);
-    if (currentFolder) {
-      const parentId = currentFolder.parentId;
-      setCurrentPath(parentId);
-      await loadDirectory(parentId);
-    }
+  // 处理来自 Breadcrumb 组件的导航事件
+  const handleBreadcrumbNavigation = async (id: number) => {
+    setCurrentPath(id);
+    await loadDirectory(id);
   };
 
   // 创建文件夹
@@ -194,32 +189,7 @@ const FileManager: React.FC = () => {
       {/* 顶部工具栏 */}
       <div className="flex items-center justify-between p-4 bg-white border-b">
         <div className="flex items-center space-x-2">
-          {currentPath !== 0 && (
-            <Button variant="outline" size="sm" onClick={handleGoBack}>
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              返回
-            </Button>
-          )}
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="ghost" 
-              className="px-2 py-1 text-blue-600 hover:text-blue-800"
-              onClick={() => {
-                setCurrentPath(0);
-                loadDirectory(0);
-              }}
-            >
-              根目录
-            </Button>
-            {currentPath !== 0 && fileList.find(f => f.id === currentPath) && (
-              <>
-                <span className="text-gray-500">/</span>
-                <span className="text-gray-700">
-                  {fileList.find(f => f.id === currentPath)?.originalName}
-                </span>
-              </>
-            )}
-          </div>
+          <Breadcrumb currentPath={currentPath} onNavigate={handleBreadcrumbNavigation} />
         </div>
         
         <div className="flex items-center space-x-2">
@@ -367,7 +337,10 @@ const FileManager: React.FC = () => {
                 {filteredFileList.map((file) => (
                   <tr key={file.id} className="border-t hover:bg-gray-50">
                     <td className="p-3">
-                      <div className="flex items-center">
+                      <div 
+                        className="flex items-center cursor-pointer hover:text-blue-600"
+                        onClick={() => file.isFolder ? handleFolderClick(file) : handleDownload(file)}
+                      >
                         {getFileIcon(file.fileType, file.isFolder)}
                         <span className="ml-2">{file.originalName}</span>
                       </div>

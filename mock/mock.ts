@@ -4,7 +4,7 @@ interface FileEntity {
   id: number
   downloadToken: string
   originalName: string
-  fileName: string
+  fileName: string | null
   filePath: string
   fileSize: number
   fileType: string

@@ -25,6 +25,8 @@ interface FileStore {
   currentPath: number;
   loading: boolean;
   error: string | null;
+  pathHistory: { [key: number]: FileItem[] };
+  pathStack: number[];  // 路径栈，存储访问路径的ID
   
   // Actions
   setCurrentPath: (path: number) => void;
@@ -34,6 +36,8 @@ interface FileStore {
   deleteFile: (fileId: number) => Promise<void>;
   renameFile: (fileId: number, newName: string) => Promise<void>;
   moveFile: (fileId: number, newParentId: number) => Promise<void>;
+  getParentPath: () => FileItem[];  // 修改为直接返回当前路径栈对应的文件项数组
+  navigateToPath: (targetId: number) => Promise<void>;  // 新增：导航到指定路径
 }
 
 export const useFileStore = create<FileStore>()(
@@ -43,8 +47,37 @@ export const useFileStore = create<FileStore>()(
       currentPath: 0,
       loading: false,
       error: null,
+      pathHistory: { 0: [] },
+      pathStack: [0], // 初始化为根目录ID
       
-      setCurrentPath: (path) => set({ currentPath: path }),
+      setCurrentPath: (path) => {
+        const state = get();
+        const stackIndex = state.pathStack.indexOf(path);
+        
+        if (stackIndex !== -1) {
+          // 如果是已经在栈中的路径，就回退到那个位置
+          set({ 
+            currentPath: path,
+            pathStack: state.pathStack.slice(0, stackIndex + 1)
+          });
+        } else {
+          // 如果是新路径，检查是否是当前路径的子目录
+          const currentFile = state.fileList.find(f => f.id === path);
+          if (currentFile && currentFile.parentId === state.currentPath) {
+            // 是当前路径的子目录，入栈
+            set(state => ({ 
+              currentPath: path,
+              pathStack: [...state.pathStack, path]
+            }));
+          } else {
+            // 不是子目录，重置为只包含这个路径
+            set({ 
+              currentPath: path,
+              pathStack: [0, path]
+            });
+          }
+        }
+      },
       
       loadDirectory: async (parentId) => {
         set({ loading: true, error: null });
@@ -52,16 +85,59 @@ export const useFileStore = create<FileStore>()(
           const response = await axios.get(`/api/files/directory/${parentId}`);
           const data = response.data;
           if (data.success) {
-            set({ fileList: data.data || [], loading: false });
+            const newFiles = data.data || [];
+            set(state => ({
+              fileList: newFiles,
+              loading: false,
+              pathHistory: {
+                ...state.pathHistory,
+                [parentId]: newFiles
+              }
+            }));
           } else {
             set({ error: data.message || '加载目录失败', loading: false });
           }
-        } catch (error: any) {
+        } catch (error) {
           set({ 
-            error: error?.message || '加载目录失败', 
+            error: error instanceof Error ? error.message : '加载目录失败', 
             loading: false 
           });
         }
+      },
+
+      getParentPath: (): FileItem[] => {
+        const state = get();
+        const path: FileItem[] = [];
+        
+        // 遍历路径栈获取每个ID对应的文件项
+        for (const id of state.pathStack) {
+          if (id === 0) {
+            path.push({
+              id: 0,
+              originalName: '根目录',
+              parentId: 0,
+              isFolder: true,
+            } as FileItem);
+            continue;
+          }
+
+          // 从历史记录中查找文件项
+          for (const items of Object.values(state.pathHistory)) {
+            const item = items.find(item => item.id === id);
+            if (item) {
+              path.push(item);
+              break;
+            }
+          }
+        }
+        
+        return path;
+      },
+
+      navigateToPath: async (targetId: number) => {
+        const { loadDirectory, setCurrentPath } = get();
+        await loadDirectory(targetId);
+        setCurrentPath(targetId);
       },
       
       createFolder: async (folderName, parentId) => {
@@ -76,9 +152,9 @@ export const useFileStore = create<FileStore>()(
           } else {
             throw new Error(data.message || '创建文件夹失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           set({ 
-            error: error?.message || '创建文件夹失败', 
+            error: error instanceof Error ? error.message : '创建文件夹失败', 
             loading: false 
           });
           throw error;
@@ -99,9 +175,9 @@ export const useFileStore = create<FileStore>()(
           } else {
             throw new Error(data.message || '上传文件失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           set({ 
-            error: error?.message || '上传文件失败', 
+            error: error instanceof Error ? error.message : '上传文件失败', 
             loading: false 
           });
           throw error;
@@ -119,9 +195,9 @@ export const useFileStore = create<FileStore>()(
           } else {
             throw new Error(data.message || '删除文件失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           set({ 
-            error: error?.message || '删除文件失败', 
+            error: error instanceof Error ? error.message : '删除文件失败', 
             loading: false 
           });
           throw error;
@@ -140,9 +216,9 @@ export const useFileStore = create<FileStore>()(
           } else {
             throw new Error(data.message || '重命名失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           set({ 
-            error: error?.message || '重命名失败', 
+            error: error instanceof Error ? error.message : '重命名失败', 
             loading: false 
           });
           throw error;
@@ -161,9 +237,9 @@ export const useFileStore = create<FileStore>()(
           } else {
             throw new Error(data.message || '移动文件失败');
           }
-        } catch (error: any) {
+        } catch (error) {
           set({ 
-            error: error?.message || '移动文件失败', 
+            error: error instanceof Error ? error.message : '移动文件失败', 
             loading: false 
           });
           throw error;
