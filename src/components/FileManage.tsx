@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from "sonner"
-import { Breadcrumb } from '@/components/ui/navigation/breadcrumb';
+import type { ApiResponse } from '@/store/fileStore';
 
 interface FileItem {
   id: number;
@@ -28,6 +28,11 @@ interface FileItem {
 }
 
 // 文件管理器组件
+interface BreadcrumbItem {
+  id: number;
+  name: string;
+}
+
 const FileManager: React.FC = () => {
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,7 +42,7 @@ const FileManager: React.FC = () => {
   const [isRenaming, setIsRenaming] = useState(false);
   const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  // breadcrumb state moved into Breadcrumb component
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ id: 0, name: '根目录' }]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { 
@@ -55,18 +60,56 @@ const FileManager: React.FC = () => {
     const initializeFiles = async () => {
       await loadDirectory(0);
       setCurrentPath(0);
+      setBreadcrumbs([{ id: 0, name: '根目录' }]);
     };
     initializeFiles();
   }, [loadDirectory, setCurrentPath]);
+
+  // 处理面包屑导航
+  const updateBreadcrumbs = (targetFolder: FileItem | null) => {
+    if (!targetFolder) {
+      setBreadcrumbs([{ id: 0, name: '根目录' }]);
+      return;
+    }
+
+    // 获取完整的父级路径
+    const parentPath = useFileStore.getState().getParentPath();
+    
+    // 构建面包屑
+    const newBreadcrumbs: BreadcrumbItem[] = [
+      { id: 0, name: '根目录' },
+      ...parentPath.map(folder => ({
+        id: folder.id,
+        name: folder.originalName
+      })),
+      {
+        id: targetFolder.id,
+        name: targetFolder.originalName
+      }
+    ];
+
+    setBreadcrumbs(newBreadcrumbs);
+  };
+
   // 处理文件夹点击
   const handleFolderClick = async (folder: FileItem) => {
     setCurrentPath(folder.id);
     await loadDirectory(folder.id);
+    updateBreadcrumbs(folder);
   };
-  // 处理来自 Breadcrumb 组件的导航事件
-  const handleBreadcrumbNavigation = async (id: number) => {
-    setCurrentPath(id);
-    await loadDirectory(id);
+
+  // 处理面包屑项点击
+  const handleBreadcrumbClick = async (item: BreadcrumbItem) => {
+    setCurrentPath(item.id);
+    await loadDirectory(item.id);
+    if (item.id === 0) {
+      setBreadcrumbs([{ id: 0, name: '根目录' }]);
+    } else {
+      const targetFolder = fileList.find(f => f.id === item.id);
+      if (targetFolder) {
+        updateBreadcrumbs(targetFolder);
+      }
+    }
   };
 
   // 创建文件夹
@@ -74,12 +117,25 @@ const FileManager: React.FC = () => {
     if (!newFolderName.trim()) return;
 
     try {
-      await createFolder(newFolderName, currentPath);
+      const response = await createFolder(newFolderName, currentPath);
+      
+      if (!response.success) {
+        toast.error(response.message || "创建文件夹失败", {
+          duration: 3000  // 显示3秒
+        });
+        return;
+      }
+      
       setNewFolderName('');
       setIsCreatingFolder(false);
-      toast.success("创建文件夹成功");
-    } catch {
-      toast.error("创建文件夹失败");
+      toast.success("创建文件夹成功", {
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Create folder error:', error);
+      toast.error("系统错误，请稍后重试", {
+        duration: 3000
+      });
     }
   };
 
@@ -92,10 +148,14 @@ const FileManager: React.FC = () => {
     setIsUploading(true);
     
     try {
-      await uploadFile(file, currentPath);
+      const response = await uploadFile(file, currentPath);
+      if (!response.success) {
+        toast.error(response.message || "上传失败");
+        return;
+      }
       toast.success("文件上传成功");
     } catch {
-      toast.error("上传失败");
+      toast.error("系统错误，请稍后重试");
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) {
@@ -115,10 +175,14 @@ const FileManager: React.FC = () => {
     if (!fileToDelete) return;
     
     try {
-      await deleteFile(fileToDelete.id);
+      const response = await deleteFile(fileToDelete.id);
+      if (!response.success) {
+        toast.error(response.message || "删除失败");
+        return;
+      }
       toast.success("删除成功");
     } catch {
-      toast.error("删除失败");
+      toast.error("系统错误，请稍后重试");
     } finally {
       setFileToDelete(null);
     }
@@ -136,13 +200,17 @@ const FileManager: React.FC = () => {
     if (!selectedFile || !renameValue.trim()) return;
 
     try {
-      await renameFile(selectedFile.id, renameValue);
+      const response = await renameFile(selectedFile.id, renameValue);
+      if (!response.success) {
+        toast.error(response.message || "重命名失败");
+        return;
+      }
       setIsRenaming(false);
       setSelectedFile(null);
       setRenameValue('');
       toast.success("重命名成功");
     } catch {
-      toast.error("重命名失败");
+      toast.error("系统错误，请稍后重试");
     }
   };
 
@@ -189,7 +257,25 @@ const FileManager: React.FC = () => {
       {/* 顶部工具栏 */}
       <div className="flex items-center justify-between p-4 bg-white border-b">
         <div className="flex items-center space-x-2">
-          <Breadcrumb currentPath={currentPath} onNavigate={handleBreadcrumbNavigation} />
+          <div className="flex items-center">
+            {breadcrumbs.map((item, index) => (
+              <React.Fragment key={item.id}>
+                {index > 0 && (
+                  <span className="mx-2 text-gray-400">/</span>
+                )}
+                <button
+                  className={`hover:text-blue-600 transition-colors ${
+                    index === breadcrumbs.length - 1
+                      ? 'text-gray-700 font-medium'
+                      : 'text-gray-500'
+                  }`}
+                  onClick={() => handleBreadcrumbClick(item)}
+                >
+                  {item.name}
+                </button>
+              </React.Fragment>
+            ))}
+          </div>
         </div>
         
         <div className="flex items-center space-x-2">
@@ -337,10 +423,7 @@ const FileManager: React.FC = () => {
                 {filteredFileList.map((file) => (
                   <tr key={file.id} className="border-t hover:bg-gray-50">
                     <td className="p-3">
-                      <div 
-                        className="flex items-center cursor-pointer hover:text-blue-600"
-                        onClick={() => file.isFolder ? handleFolderClick(file) : handleDownload(file)}
-                      >
+                      <div className="flex items-center">
                         {getFileIcon(file.fileType, file.isFolder)}
                         <span className="ml-2">{file.originalName}</span>
                       </div>

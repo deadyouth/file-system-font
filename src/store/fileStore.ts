@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import axios from 'axios';
 
+export interface ApiResponse<T> {
+  success: boolean;
+  message: string;
+  data: T | null;
+  code: number;
+  timestamp: string;
+}
+
 interface FileItem {
   id: number;
   downloadToken: string;
@@ -30,12 +38,12 @@ interface FileStore {
   
   // Actions
   setCurrentPath: (path: number) => void;
-  loadDirectory: (parentId: number) => Promise<void>;
-  createFolder: (folderName: string, parentId: number) => Promise<void>;
-  uploadFile: (file: File, parentId: number) => Promise<void>;
-  deleteFile: (fileId: number) => Promise<void>;
-  renameFile: (fileId: number, newName: string) => Promise<void>;
-  moveFile: (fileId: number, newParentId: number) => Promise<void>;
+  loadDirectory: (parentId: number) => Promise<ApiResponse<FileItem[]>>;
+  createFolder: (folderName: string, parentId: number) => Promise<ApiResponse<null>>;
+  uploadFile: (file: File, parentId: number) => Promise<ApiResponse<null>>;
+  deleteFile: (fileId: number) => Promise<ApiResponse<null>>;
+  renameFile: (fileId: number, newName: string) => Promise<ApiResponse<null>>;
+  moveFile: (fileId: number, newParentId: number) => Promise<ApiResponse<null>>;
   getParentPath: () => FileItem[];  // 修改为直接返回当前路径栈对应的文件项数组
   navigateToPath: (targetId: number) => Promise<void>;  // 新增：导航到指定路径
 }
@@ -83,7 +91,7 @@ export const useFileStore = create<FileStore>()(
         set({ loading: true, error: null });
         try {
           const response = await axios.get(`/api/files/directory/${parentId}`);
-          const data = response.data;
+          const data = response.data as ApiResponse<FileItem[]>;
           if (data.success) {
             const newFiles = data.data || [];
             set(state => ({
@@ -97,11 +105,17 @@ export const useFileStore = create<FileStore>()(
           } else {
             set({ error: data.message || '加载目录失败', loading: false });
           }
+          return data;
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : '加载目录失败', 
-            loading: false 
-          });
+          const errorMsg = error instanceof Error ? error.message : '加载目录失败';
+          set({ error: errorMsg, loading: false });
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: 500,
+            timestamp: new Date().toISOString()
+          };
         }
       },
 
@@ -143,21 +157,24 @@ export const useFileStore = create<FileStore>()(
       createFolder: async (folderName, parentId) => {
         set({ loading: true, error: null });
         try {
-          // Send JSON body so vite-plugin-mock receives a parsed object in `body`
           const response = await axios.post('/api/files/folder', { folderName, parentId });
-          const data = response.data;
+          const data = response.data as ApiResponse<null>;
           if (data.success) {
             const { currentPath, loadDirectory } = get();
             await loadDirectory(currentPath);
-          } else {
-            throw new Error(data.message || '创建文件夹失败');
           }
+          set({ loading: false });
+          return data;
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : '创建文件夹失败', 
-            loading: false 
-          });
-          throw error;
+          const errorMsg = error instanceof Error ? error.message : '创建文件夹失败';
+          set({ error: errorMsg, loading: false });
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: 500,
+            timestamp: new Date().toISOString()
+          };
         }
       },
       
@@ -168,19 +185,23 @@ export const useFileStore = create<FileStore>()(
           formData.append('file', file);
           formData.append('parentId', parentId.toString());
           const response = await axios.post('/api/files/upload', formData);
-          const data = response.data;
+          const data = response.data as ApiResponse<null>;
           if (data.success) {
             const { currentPath, loadDirectory } = get();
             await loadDirectory(currentPath);
-          } else {
-            throw new Error(data.message || '上传文件失败');
           }
+          set({ loading: false });
+          return data;
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : '上传文件失败', 
-            loading: false 
-          });
-          throw error;
+          const errorMsg = error instanceof Error ? error.message : '上传文件失败';
+          set({ error: errorMsg, loading: false });
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: 500,
+            timestamp: new Date().toISOString()
+          };
         }
       },
       
@@ -188,19 +209,23 @@ export const useFileStore = create<FileStore>()(
         set({ loading: true, error: null });
         try {
           const response = await axios.delete(`/api/files/${fileId}`);
-          const data = response.data;
+          const data = response.data as ApiResponse<null>;
           if (data.success) {
             const { currentPath, loadDirectory } = get();
             await loadDirectory(currentPath);
-          } else {
-            throw new Error(data.message || '删除文件失败');
           }
+          set({ loading: false });
+          return data;
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : '删除文件失败', 
-            loading: false 
-          });
-          throw error;
+          const errorMsg = error instanceof Error ? error.message : '删除文件失败';
+          set({ error: errorMsg, loading: false });
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: 500,
+            timestamp: new Date().toISOString()
+          };
         }
       },
       
@@ -209,19 +234,23 @@ export const useFileStore = create<FileStore>()(
         try {
           const params = new URLSearchParams({ newName });
           const response = await axios.put(`/api/files/${fileId}/rename`, params);
-          const data = response.data;
+          const data = response.data as ApiResponse<null>;
           if (data.success) {
             const { currentPath, loadDirectory } = get();
             await loadDirectory(currentPath);
-          } else {
-            throw new Error(data.message || '重命名失败');
           }
+          set({ loading: false });
+          return data;
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : '重命名失败', 
-            loading: false 
-          });
-          throw error;
+          const errorMsg = error instanceof Error ? error.message : '重命名失败';
+          set({ error: errorMsg, loading: false });
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: 500,
+            timestamp: new Date().toISOString()
+          };
         }
       },
       
@@ -230,19 +259,23 @@ export const useFileStore = create<FileStore>()(
         try {
           const params = new URLSearchParams({ newParentId: newParentId.toString() });
           const response = await axios.put(`/api/files/${fileId}/move`, params);
-          const data = response.data;
+          const data = response.data as ApiResponse<null>;
           if (data.success) {
             const { currentPath, loadDirectory } = get();
             await loadDirectory(currentPath);
-          } else {
-            throw new Error(data.message || '移动文件失败');
           }
+          set({ loading: false });
+          return data;
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : '移动文件失败', 
-            loading: false 
-          });
-          throw error;
+          const errorMsg = error instanceof Error ? error.message : '移动文件失败';
+          set({ error: errorMsg, loading: false });
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: 500,
+            timestamp: new Date().toISOString()
+          };
         }
       },
     }),
