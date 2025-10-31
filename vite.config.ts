@@ -5,11 +5,8 @@ import tailwindcss from '@tailwindcss/vite'
 import { viteMockServe } from 'vite-plugin-mock'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode, command }) => {
+export default defineConfig(({ mode }) => {
   const env = mode === 'development' ? 'dev' : mode === 'test' ? 'test' : 'prod';
-  console.log('Vite mode:', mode);
-  console.log('Vite command:', command);
-  console.log('Environment:', env);
   
   return {
     plugins: [react(), tailwindcss(),
@@ -22,30 +19,18 @@ export default defineConfig(({ mode, command }) => {
     ],
     esbuild: {
       drop: env === 'prod' ? ['console', 'debugger'] : [],  // 只在生产环境移除 console
-      pure: env === 'prod' ? ['console.log', 'debugger'] : [], // 只在生产环境移除
-      keepNames: true,
-      sourcemap: true
     },
     build: {
       minify: env === 'prod',  // 只在生产环境压缩
-      sourcemap: true,  // 总是生成 sourcemap
-      rollupOptions: {
-        treeshake: env === 'prod', // 只在生产环境 tree-shake
-      }
+      sourcemap: env !== 'prod'  // 非生产环境保留 sourcemap
     },
-    define: {
-      __DEV__: env !== 'prod',
-      __TEST__: env === 'test',
-      __PROD__: env === 'prod'
-    },
-    logLevel: 'info', // 设置日志级别
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },
     },
     server: {
-      port: 3000,
+      // port: 3000,
       host: true,
       open: true,  // 自动打开浏览器
       cors: true,  // 启用 CORS
