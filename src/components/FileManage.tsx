@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Folder, File, Upload, Grid3X3, List, MoreHorizontal, 
   Download, Trash2, Edit3, FolderPlus, FileImage, FileVideo, 
-  FileAudio, FileText as FileTextIcon 
+  FileAudio, FileText as FileTextIcon, LogOut
 } from 'lucide-react';
 import { useFileStore } from '@/store/fileStore';
+import { useAuthStore } from '@/store/authStore';
 import { 
   Dialog, DialogContent, DialogHeader, DialogTitle, 
   DialogTrigger, DialogFooter 
@@ -434,6 +435,19 @@ const FileManager: React.FC = () => {
             onChange={handleSelectFiles}
             multiple
           />
+          
+          {/* 退出登录按钮 */}
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              useAuthStore.getState().logout();
+              toast.success('已退出登录');
+            }}
+            className="ml-2"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            退出登录
+          </Button>
         </div>
     </div>
 

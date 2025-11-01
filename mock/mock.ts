@@ -235,7 +235,7 @@ const mockList: MockMethod[] = [
     url: '/api/files/directory/:parentId',
     method: 'get',
     response: ({ params }) => {
-      const parentId = Number(params.parentId);
+      const parentId = Number(params?.parentId??0);
       const files = findFilesByParentId(parentId);
       const res: ApiResponseListFileDTO = {
         success: true,
