@@ -31,7 +31,8 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       // port: 3000,
-      host: true,
+      // host: true,
+
       open: true,  // 自动打开浏览器
       cors: true,  // 启用 CORS
       strictPort: true,  // 端口被占用时直接报错
@@ -41,9 +42,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: env === 'test' 
-            ? 'http://127.0.0.1:8089'  // 测试环境API地址
+            ? 'http://127.0.0.1:8080'  // 测试环境API地址
             : env === 'prod'
-              ? 'http://api.example.com'     // 生产环境API地址
+              ? 'http://fs.qz.zj.sgcc.com.cn'     // 生产环境API地址
               : 'http://localhost:8080',      // 开发环境API地址
           changeOrigin: true,
           rewrite: (path) => path // 保持 /api 路径不变

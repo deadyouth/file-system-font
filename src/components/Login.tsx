@@ -49,14 +49,14 @@ const Login: React.FC = () => {
         toast.error(result.message || '登录失败');
         setIsLoading(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('登录失败，请稍后重试');
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Logo和标题 */}
@@ -64,8 +64,8 @@ const Login: React.FC = () => {
             <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
               <FileText className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">文件管理系统</h1>
-            <p className="text-gray-600">请登录您的账户</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">物资文件管理</h1>
+
           </div>
 
           {/* 登录表单 */}
@@ -124,14 +124,8 @@ const Login: React.FC = () => {
             </Button>
           </form>
 
-          {/* 提示信息 */}
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800 font-medium mb-2">测试账号：</p>
-            <ul className="text-xs text-blue-700 space-y-1">
-              <li>• 用户名: admin，密码: password</li>
-              <li>• 用户名: user1，密码: password</li>
-            </ul>
-          </div>
+
+
         </div>
       </div>
     </div>

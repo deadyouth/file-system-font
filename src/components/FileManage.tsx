@@ -81,7 +81,8 @@ const FileManager: React.FC = () => {
     deleteFile, 
     renameFile,
     getParentPath,
-    uploadFileWithProgress
+    uploadFileWithProgress,
+    downloadFile
   } = useFileStore();
 
   useEffect(() => {
@@ -271,10 +272,22 @@ const FileManager: React.FC = () => {
   };
 
   // 下载文件
-  const handleDownload = (file: FileItem) => {
-    if (file.isFolder) return;
-    window.open(`/api/files/download/${file.downloadToken}`, '_blank');
-  };
+// 替换原来的 handleDownload
+const handleDownload = async (file: FileItem) => {
+  if (file.isFolder) return;
+
+  try {
+    const res = await downloadFile(file.downloadToken, file.originalName || file.fileName || 'download');
+    if (!res.success) {
+      toast.error(res.message || '下载失败');
+    }
+    // 成功时，fetchBlobAndTriggerDownload 会自动触发下载，无需额外操作
+  } catch (err: unknown) {
+    console.error('Download error:', err);
+    const message = err instanceof Error ? err.message : '下载失败';
+    toast.error(message);
+  }
+};
 
   // 过滤文件列表
   const filteredFileList = fileList.filter(file =>

@@ -2,6 +2,8 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import axios from 'axios';
+import { useAuthStore } from './authStore';
+import { fetchBlobAndTriggerDownload } from '@/lib/download';
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -46,6 +48,7 @@ interface FileStore {
     parentId: number,
     onProgress: (progress: number) => void
   ) => Promise<ApiResponse<null>>;
+  downloadFile: (downloadToken: string, fallbackFilename?: string) => Promise<ApiResponse<null>>;
   deleteFile: (fileId: number) => Promise<ApiResponse<null>>;
   renameFile: (fileId: number, newName: string) => Promise<ApiResponse<null>>;
   moveFile: (fileId: number, newParentId: number) => Promise<ApiResponse<null>>;
@@ -238,7 +241,7 @@ uploadFileWithProgress: async (file, parentId, onProgress) => {
     formData.append('parentId', parentId.toString());
 
     const xhr = new XMLHttpRequest();
-
+    const {token} = useAuthStore.getState();
     xhr.upload.onprogress = (event: ProgressEvent) => {
       if (event.lengthComputable) {
         const percent = Math.round((event.loaded / event.total) * 100);
@@ -258,7 +261,7 @@ uploadFileWithProgress: async (file, parentId, onProgress) => {
         } else {
           reject(new Error(data.message || '上传失败'));
         }
-      } catch (e) {
+      } catch {
         reject(new Error('响应解析失败'));
       }
     };
@@ -268,6 +271,9 @@ uploadFileWithProgress: async (file, parentId, onProgress) => {
     };
 
     xhr.open('POST', '/api/files/upload');
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
     xhr.send(formData);
   });
   // ✅ 移除 .then(...) 的错误兜底！让 reject 透传出去
@@ -375,6 +381,35 @@ uploadFileWithProgress: async (file, parentId, onProgress) => {
             code: statusCode,
             timestamp: new Date().toISOString(),
           };
+        }
+      },
+
+      // Download a file by its download token. This will attempt to fetch the blob
+      // and trigger a browser download via fetchBlobAndTriggerDownload. Returns
+      // an ApiResponse-like result indicating success or failure.
+      downloadFile: async (downloadToken, fallbackFilename = 'download') => {
+        try {
+          await fetchBlobAndTriggerDownload(`/api/files/download/${downloadToken}`, fallbackFilename);
+          return {
+            success: true,
+            message: '下载开始',
+            data: null,
+            code: 200,
+            timestamp: new Date().toISOString(),
+          } as ApiResponse<null>;
+        } catch (err: unknown) {
+          let errorMsg = '下载失败';
+          const statusCode = 500;
+          if (err instanceof Error) {
+            errorMsg = err.message || errorMsg;
+          }
+          return {
+            success: false,
+            message: errorMsg,
+            data: null,
+            code: statusCode,
+            timestamp: new Date().toISOString(),
+          } as ApiResponse<null>;
         }
       },
     }),

@@ -106,6 +106,11 @@ export const useAuthStore = create<AuthStore>()(
       }),
       {
         name: 'auth-storage',
+        onRehydrateStorage: () => (state) => {
+          if (state?.token) {
+            axios.defaults.headers.common['Authorization'] = `Bearer ${state.token}`;
+          }
+        },
       }
     ),
     { name: 'authStore' }
